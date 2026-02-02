@@ -146,12 +146,6 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 mb-6">
             <div className="flex flex-wrap items-end gap-4">
-              <div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Time Period</label>
-                <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-[#FF8C00] min-w-[180px]">
-                  <option value="nov2025">November 2025</option><option value="dec2025">December 2025</option><option value="jan2026">January 2026</option><option value="feb2026">February 2026</option><option value="mar2026">March 2026</option><option value="apr2026">April 2026</option><option value="may2026">May 2026</option><option value="jun2026">June 2026</option><option value="jul2026">July 2026</option><option value="aug2026">August 2026</option><option value="sep2026">September 2026</option><option value="oct2026">October 2026</option><option value="nov2026">November 2026</option><option value="dec2026">December 2026</option><option value="custom">Custom Range</option>
-                </select>
-              </div>
-              {dateRange === 'custom' && (<React.Fragment><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Start Date</label><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">End Date</label><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div></React.Fragment>)}
               <button onClick={handleToday} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
                 {loading && <LoadingSpinner />} Today
               </button>
@@ -161,9 +155,15 @@ export default function Dashboard() {
               <button onClick={handleThisMonth} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
                 {loading && <LoadingSpinner />} This Month
               </button>
-              <button onClick={fetchData} disabled={loading} className="bg-[#FF8C00] text-white px-6 py-2.5 rounded-lg hover:bg-[#E67E00] disabled:bg-gray-600 font-semibold flex items-center gap-2 shadow-lg">
-                {loading && <LoadingSpinner />} {loading ? 'Loading...' : 'Request Data'}
-              </button>
+              <div className="flex items-center gap-2">
+                <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-[#FF8C00] min-w-[180px]">
+                  <option value="nov2025">November 2025</option><option value="dec2025">December 2025</option><option value="jan2026">January 2026</option><option value="feb2026">February 2026</option><option value="mar2026">March 2026</option><option value="apr2026">April 2026</option><option value="may2026">May 2026</option><option value="jun2026">June 2026</option><option value="jul2026">July 2026</option><option value="aug2026">August 2026</option><option value="sep2026">September 2026</option><option value="oct2026">October 2026</option><option value="nov2026">November 2026</option><option value="dec2026">December 2026</option><option value="custom">Custom Range</option>
+                </select>
+                {dateRange === 'custom' && (<React.Fragment><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2.5 text-white" /><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2.5 text-white" /></React.Fragment>)}
+                <button onClick={fetchData} disabled={loading} className="bg-[#FF8C00] text-white px-6 py-2.5 rounded-lg hover:bg-[#E67E00] disabled:bg-gray-600 font-semibold flex items-center gap-2 shadow-lg">
+                  {loading && <LoadingSpinner />} {loading ? 'Loading...' : 'Request Data'}
+                </button>
+              </div>
             </div>
           </div>
           {error && <div className="bg-red-900/50 border border-red-500 text-red-200 px-5 py-4 rounded-xl mb-6"><strong>Error:</strong> {error}</div>}
