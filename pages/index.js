@@ -7,7 +7,7 @@ export default function Dashboard() {
   const [initialLoad, setInitialLoad] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
-  const [dateRange, setDateRange] = useState('jan2026');
+  const [dateRange, setDateRange] = useState('feb2026');
   const [customStart, setCustomStart] = useState('2025-11-01');
   const [customEnd, setCustomEnd] = useState('2026-02-01');
   const [activeTab, setActiveTab] = useState('summary');
@@ -73,8 +73,21 @@ export default function Dashboard() {
   const handleThisMonth = () => { const dates = getQuickDates('thisMonth'); fetchDataWithDates(dates.start, dates.end); };
 
   const fetchData = async () => {
-    const startDate = dateRange === 'custom' ? customStart + 'T00:00:00-05:00' : dateRanges[dateRange].start;
-    const endDate = dateRange === 'custom' ? customEnd + 'T00:00:00-05:00' : dateRanges[dateRange].end;
+    let startDate, endDate;
+    if (dateRange === 'custom') {
+      if (!customStart || !customEnd) {
+        setError('Please select both start and end dates.');
+        return;
+      }
+      startDate = customStart + 'T00:00:00-05:00';
+      // Add one day to end date to include the full end day
+      const endDateObj = new Date(customEnd);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      endDate = endDateObj.toISOString().split('T')[0] + 'T00:00:00-05:00';
+    } else {
+      startDate = dateRanges[dateRange].start;
+      endDate = dateRanges[dateRange].end;
+    }
     await fetchDataWithDates(startDate, endDate);
   };
 
@@ -151,7 +164,7 @@ export default function Dashboard() {
         </div>
         <div className="max-w-7xl mx-auto px-4 py-6">
           <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 mb-6">
-            <div className="flex flex-wrap items-end gap-4">
+            <div className="flex flex-wrap items-center gap-3">
               <button onClick={handleToday} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
                 {loading && <LoadingSpinner />} Today
               </button>
@@ -168,12 +181,35 @@ export default function Dashboard() {
                 <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-[#FF8C00] min-w-[180px]">
                   <option value="nov2025">November 2025</option><option value="dec2025">December 2025</option><option value="jan2026">January 2026</option><option value="feb2026">February 2026</option><option value="mar2026">March 2026</option><option value="apr2026">April 2026</option><option value="may2026">May 2026</option><option value="jun2026">June 2026</option><option value="jul2026">July 2026</option><option value="aug2026">August 2026</option><option value="sep2026">September 2026</option><option value="oct2026">October 2026</option><option value="nov2026">November 2026</option><option value="dec2026">December 2026</option><option value="custom">Custom Range</option>
                 </select>
-                {dateRange === 'custom' && (<React.Fragment><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2.5 text-white" /><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2.5 text-white" /></React.Fragment>)}
                 <button onClick={fetchData} disabled={loading} className="bg-[#FF8C00] text-white px-6 py-2.5 rounded-lg hover:bg-[#E67E00] disabled:bg-gray-600 font-semibold flex items-center gap-2 shadow-lg">
                   {loading && <LoadingSpinner />} {loading ? 'Loading...' : 'Request Data'}
                 </button>
               </div>
             </div>
+            {dateRange === 'custom' && (
+              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-[#2D4A6F]">
+                <span className="text-sm text-gray-400">Custom Range:</span>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-300">From</label>
+                  <input 
+                    type="date" 
+                    value={customStart} 
+                    onChange={(e) => setCustomStart(e.target.value)} 
+                    className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2 text-white cursor-pointer"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-300">To</label>
+                  <input 
+                    type="date" 
+                    value={customEnd} 
+                    onChange={(e) => setCustomEnd(e.target.value)} 
+                    className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-3 py-2 text-white cursor-pointer"
+                  />
+                </div>
+                <span className="text-xs text-gray-500">(Click to open calendar)</span>
+              </div>
+            )}
           </div>
           {error && <div className="bg-red-900/50 border border-red-500 text-red-200 px-5 py-4 rounded-xl mb-6"><strong>Error:</strong> {error}</div>}
           {loading && <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF8C00]"></div></div>}
