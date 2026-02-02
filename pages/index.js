@@ -37,6 +37,11 @@ export default function Dashboard() {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       return { start: today + 'T00:00:00-05:00', end: tomorrow.toISOString().split('T')[0] + 'T00:00:00-05:00' };
+    } else if (type === 'yesterday') {
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const today = now.toISOString().split('T')[0];
+      return { start: yesterday.toISOString().split('T')[0] + 'T00:00:00-05:00', end: today + 'T00:00:00-05:00' };
     } else if (type === 'last7') {
       const end = new Date(now); end.setDate(end.getDate() + 1);
       const start = new Date(now); start.setDate(start.getDate() - 6);
@@ -63,6 +68,7 @@ export default function Dashboard() {
   };
 
   const handleToday = () => { const dates = getQuickDates('today'); fetchDataWithDates(dates.start, dates.end); };
+  const handleYesterday = () => { const dates = getQuickDates('yesterday'); fetchDataWithDates(dates.start, dates.end); };
   const handleLast7Days = () => { const dates = getQuickDates('last7'); fetchDataWithDates(dates.start, dates.end); };
   const handleThisMonth = () => { const dates = getQuickDates('thisMonth'); fetchDataWithDates(dates.start, dates.end); };
 
@@ -148,6 +154,9 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-end gap-4">
               <button onClick={handleToday} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
                 {loading && <LoadingSpinner />} Today
+              </button>
+              <button onClick={handleYesterday} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
+                {loading && <LoadingSpinner />} Yesterday
               </button>
               <button onClick={handleLast7Days} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
                 {loading && <LoadingSpinner />} Last 7 Days
