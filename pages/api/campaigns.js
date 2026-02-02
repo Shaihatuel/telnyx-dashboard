@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     let hasMore = true;
 
     while (hasMore) {
-      let url = `https://api.telnyx.com/v2/10dlc/campaign?page[number]=${page}&page[size]=100`;
+      // Use the correct Telnyx 10DLC endpoint (without /v2/)
+      let url = `https://api.telnyx.com/10dlc/campaign?page=${page}&recordsPerPage=100`;
       if (brandId && brandId !== 'all') {
         url += `&brandId=${brandId}`;
       }
@@ -17,7 +18,8 @@ export default async function handler(req, res) {
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         }
       });
 
@@ -27,26 +29,25 @@ export default async function handler(req, res) {
       }
 
       const result = await response.json();
-      const campaigns = result.records || result.data || [];
+      
+      // Telnyx 10DLC API returns data in "records"
+      const campaigns = result.records || [];
       allCampaigns = [...allCampaigns, ...campaigns];
 
-      // Check if there are more pages
-      const meta = result.meta || {};
-      const totalPages = meta.total_pages || meta.totalPages || 1;
+      // Check pagination using totalRecords
+      const totalRecords = result.totalRecords || campaigns.length;
       
-      if (page >= totalPages || campaigns.length === 0) {
+      if (allCampaigns.length >= totalRecords || campaigns.length === 0) {
         hasMore = false;
       } else {
         page++;
       }
 
       // Safety limit
-      if (page > 50) {
-        hasMore = false;
-      }
+      if (page > 20) hasMore = false;
     }
 
-    return res.status(200).json({ data: allCampaigns });
+    return res.status(200).json({ data: allCampaigns, total: allCampaigns.length });
   } catch (error) {
     return res.status(500).json({ error: error.message });
   }
