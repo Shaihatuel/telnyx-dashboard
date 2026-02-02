@@ -74,30 +74,62 @@ export default function Dashboard() {
   const formatDateDisplay = (dateStr) => {
     if (!dateStr || dateStr === 'Unknown') return dateStr;
     try {
-      const date = new Date(dateStr + 'T00:00:00');
+      // Handle ISO format (2026-01-15T00:00:00-05:00) or just date (2026-01-15)
+      const cleanDate = dateStr.split('T')[0];
+      const parts = cleanDate.split('-');
+      if (parts.length !== 3) return dateStr;
+      
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      
+      if (isNaN(year) || isNaN(month) || isNaN(day)) return dateStr;
+      
+      const date = new Date(year, month, day);
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      return `${days[date.getDay()]} ${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}/${date.getFullYear()}`;
-    } catch { return dateStr; }
+      const dayName = days[date.getDay()];
+      const mm = String(month + 1).padStart(2, '0');
+      const dd = String(day).padStart(2, '0');
+      return `${dayName} ${mm}/${dd}/${year}`;
+    } catch (e) { 
+      return dateStr; 
+    }
   };
 
   const processData = (rawData) => {
     const dailyMap = {}, carrierMap = {}, directionMap = {};
     let totalMessages = 0, totalCost = 0, totalParts = 0, totalDelivered = 0, totalFailed = 0;
     rawData.forEach(item => {
-      const date = item.date || 'Unknown', carrier = item.normalized_carrier || 'Unknown', direction = item.direction || 'Unknown';
-      const status = item.status_v2 || item.status || '', count = Number(item.count) || 0, cost = Number(item.cost) || 0, parts = Number(item.parts) || 0;
+      // Extract just the date part (YYYY-MM-DD) from any format
+      let rawDate = item.date || 'Unknown';
+      if (rawDate && rawDate.includes('T')) {
+        rawDate = rawDate.split('T')[0];
+      }
+      const date = rawDate;
+      const carrier = item.normalized_carrier || 'Unknown';
+      const direction = item.direction || 'Unknown';
+      const status = item.status_v2 || item.status || '';
+      const count = Number(item.count) || 0;
+      const cost = Number(item.cost) || 0;
+      const parts = Number(item.parts) || 0;
+      
       if (status === 'delivered' || status === 'sent') totalDelivered += count;
       else if (status === 'failed' || status === 'delivery_failed') totalFailed += count;
+      
       if (!dailyMap[date]) dailyMap[date] = { date, messages: 0, cost: 0, parts: 0, inbound: 0, outbound: 0 };
       dailyMap[date].messages += count; dailyMap[date].cost += cost; dailyMap[date].parts += parts;
       if (direction === 'inbound') dailyMap[date].inbound += count; else if (direction === 'outbound') dailyMap[date].outbound += count;
+      
       if (!carrierMap[carrier]) carrierMap[carrier] = { carrier, messages: 0, cost: 0, parts: 0, inbound: 0, outbound: 0 };
       carrierMap[carrier].messages += count; carrierMap[carrier].cost += cost; carrierMap[carrier].parts += parts;
       if (direction === 'inbound') carrierMap[carrier].inbound += count; else if (direction === 'outbound') carrierMap[carrier].outbound += count;
+      
       if (!directionMap[direction]) directionMap[direction] = { direction, messages: 0, cost: 0, parts: 0 };
       directionMap[direction].messages += count; directionMap[direction].cost += cost; directionMap[direction].parts += parts;
+      
       totalMessages += count; totalCost += cost; totalParts += parts;
     });
+    
     const dailyData = Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date));
     const carrierData = Object.values(carrierMap).sort((a, b) => b.cost - a.cost);
     const directionData = Object.values(directionMap);
@@ -105,11 +137,13 @@ export default function Dashboard() {
     const totalInbound = directionData.find(d => d.direction === 'inbound')?.messages || 0;
     const totalOutbound = directionData.find(d => d.direction === 'outbound')?.messages || 0;
     const deliveryRate = (totalDelivered + totalFailed) > 0 ? (totalDelivered / (totalDelivered + totalFailed)) * 100 : null;
+    
     return { daily: dailyData, carriers: carrierData, directions: directionData, summary: { totalMessages, totalCost, totalParts, totalInbound, totalOutbound, deliveryRate, avgMessagesPerDay: totalMessages / numDays, avgCostPerDay: totalCost / numDays, avgCostPerMessage: totalMessages > 0 ? totalCost / totalMessages : 0, avgCostPerSegment: totalParts > 0 ? totalCost / totalParts : 0, numDays } };
   };
 
   const formatCurrency = (v) => `$${Number(v).toFixed(2)}`;
   const formatNumber = (v) => Number(v).toLocaleString();
+  
   const MetricCard = ({ title, value, subtitle, color = "blue" }) => {
     const colors = { blue: 'text-blue-400', green: 'text-green-400', orange: 'text-orange-400', indigo: 'text-indigo-400', purple: 'text-purple-400', cyan: 'text-cyan-400' };
     return (<div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 hover:border-[#FF8C00]/50 transition-all"><h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{title}</h3><p className={`mt-2 text-2xl font-bold ${colors[color] || 'text-white'}`}>{value}</p>{subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}</div>);
