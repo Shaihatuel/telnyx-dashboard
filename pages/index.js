@@ -17,6 +17,8 @@ export default function Dashboard() {
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState('all');
+  const [topPerformers, setTopPerformers] = useState([]);
+  const [loadingPerformers, setLoadingPerformers] = useState(false);
 
   const dateRanges = {
     nov2025: { start: '2025-11-01T00:00:00-05:00', end: '2025-12-01T00:00:00-05:00' },
@@ -33,8 +35,6 @@ export default function Dashboard() {
     oct2026: { start: '2026-10-01T00:00:00-04:00', end: '2026-11-01T00:00:00-04:00' },
     nov2026: { start: '2026-11-01T00:00:00-05:00', end: '2026-12-01T00:00:00-05:00' },
     dec2026: { start: '2026-12-01T00:00:00-05:00', end: '2027-01-01T00:00:00-05:00' },
-    lastWeek: { start: new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0] + 'T00:00:00-05:00', end: new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0] + 'T00:00:00-05:00' },
-    lastMonth: { start: new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0] + 'T00:00:00-05:00', end: new Date(Date.now() + 24*60*60*1000).toISOString().split('T')[0] + 'T00:00:00-05:00' },
     custom: { start: '', end: '' }
   };
 
@@ -57,54 +57,103 @@ export default function Dashboard() {
     } catch (err) { console.error(err); }
   };
 
-  const fetchData = async () => {
+  const getQuickDates = (type) => {
+    const now = new Date();
+    const estOffset = -5; // EST offset
+    
+    if (type === 'today') {
+      const today = new Date(now.getTime() + (estOffset * 60 * 60 * 1000));
+      const dateStr = today.toISOString().split('T')[0];
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      return { start: `${dateStr}T00:00:00-05:00`, end: `${tomorrowStr}T00:00:00-05:00` };
+    } else if (type === 'last7') {
+      const end = new Date(now);
+      end.setDate(end.getDate() + 1);
+      const start = new Date(now);
+      start.setDate(start.getDate() - 6);
+      return { 
+        start: `${start.toISOString().split('T')[0]}T00:00:00-05:00`, 
+        end: `${end.toISOString().split('T')[0]}T00:00:00-05:00` 
+      };
+    } else if (type === 'thisMonth') {
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const firstDay = new Date(year, month, 1);
+      const lastDay = new Date(year, month + 1, 1);
+      return { 
+        start: `${firstDay.toISOString().split('T')[0]}T00:00:00-05:00`, 
+        end: `${lastDay.toISOString().split('T')[0]}T00:00:00-05:00` 
+      };
+    }
+  };
+
+  const handleQuickButton = async (type) => {
+    const dates = getQuickDates(type);
+    await fetchDataWithDates(dates.start, dates.end);
+  };
+
+  const fetchDataWithDates = async (startDate, endDate) => {
     setLoading(true); setError(null); setInitialLoad(false);
-    let startDate = dateRange === 'custom' ? `${customStart}T00:00:00-05:00` : dateRanges[dateRange].start;
-    let endDate = dateRange === 'custom' ? `${customEnd}T00:00:00-05:00` : dateRanges[dateRange].end;
     try {
       const res = await fetch('/api/telnyx', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate }) });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || `API Error: ${res.status}`);
       if (!result.data?.length) { setData(null); setError('No data found for the selected period.'); }
       else setData(processData(result.data));
+      
+      if (selectedBrand === 'all') {
+        fetchTopPerformers(startDate, endDate);
+      } else {
+        setTopPerformers([]);
+      }
     } catch (err) { setError(err.message); setData(null); }
     finally { setLoading(false); }
+  };
+
+  const fetchData = async () => {
+    let startDate = dateRange === 'custom' ? `${customStart}T00:00:00-05:00` : dateRanges[dateRange].start;
+    let endDate = dateRange === 'custom' ? `${customEnd}T00:00:00-05:00` : dateRanges[dateRange].end;
+    await fetchDataWithDates(startDate, endDate);
+  };
+
+  const fetchTopPerformers = async (startDate, endDate) => {
+    setLoadingPerformers(true);
+    try {
+      const res = await fetch('/api/top-performers', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ startDate, endDate }) 
+      });
+      const result = await res.json();
+      if (result.data) setTopPerformers(result.data);
+    } catch (err) { console.error('Error fetching top performers:', err); }
+    finally { setLoadingPerformers(false); }
   };
 
   const formatDateDisplay = (dateStr) => {
     if (!dateStr || dateStr === 'Unknown') return dateStr;
     try {
-      // Handle ISO format (2026-01-15T00:00:00-05:00) or just date (2026-01-15)
       const cleanDate = dateStr.split('T')[0];
       const parts = cleanDate.split('-');
       if (parts.length !== 3) return dateStr;
-      
       const year = parseInt(parts[0], 10);
       const month = parseInt(parts[1], 10) - 1;
       const day = parseInt(parts[2], 10);
-      
       if (isNaN(year) || isNaN(month) || isNaN(day)) return dateStr;
-      
       const date = new Date(year, month, day);
       const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-      const dayName = days[date.getDay()];
-      const mm = String(month + 1).padStart(2, '0');
-      const dd = String(day).padStart(2, '0');
-      return `${dayName} ${mm}/${dd}/${year}`;
-    } catch (e) { 
-      return dateStr; 
-    }
+      return `${days[date.getDay()]} ${String(month + 1).padStart(2, '0')}/${String(day).padStart(2, '0')}/${year}`;
+    } catch (e) { return dateStr; }
   };
 
   const processData = (rawData) => {
     const dailyMap = {}, carrierMap = {}, directionMap = {};
     let totalMessages = 0, totalCost = 0, totalParts = 0, totalDelivered = 0, totalFailed = 0;
     rawData.forEach(item => {
-      // Extract just the date part (YYYY-MM-DD) from any format
       let rawDate = item.date || 'Unknown';
-      if (rawDate && rawDate.includes('T')) {
-        rawDate = rawDate.split('T')[0];
-      }
+      if (rawDate && rawDate.includes('T')) rawDate = rawDate.split('T')[0];
       const date = rawDate;
       const carrier = item.normalized_carrier || 'Unknown';
       const direction = item.direction || 'Unknown';
@@ -141,7 +190,14 @@ export default function Dashboard() {
     return { daily: dailyData, carriers: carrierData, directions: directionData, summary: { totalMessages, totalCost, totalParts, totalInbound, totalOutbound, deliveryRate, avgMessagesPerDay: totalMessages / numDays, avgCostPerDay: totalCost / numDays, avgCostPerMessage: totalMessages > 0 ? totalCost / totalMessages : 0, avgCostPerSegment: totalParts > 0 ? totalCost / totalParts : 0, numDays } };
   };
 
-  const formatCurrency = (v) => `$${Number(v).toFixed(2)}`;
+  const formatCurrency = (v) => {
+    const num = Number(v);
+    if (num >= 1000) {
+      return '$' + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+    return `$${num.toFixed(2)}`;
+  };
+  
   const formatNumber = (v) => Number(v).toLocaleString();
   
   const MetricCard = ({ title, value, subtitle, color = "blue" }) => {
@@ -159,12 +215,25 @@ export default function Dashboard() {
         </div>
       </div>
       <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Quick Buttons */}
+        <div className="flex flex-wrap gap-3 mb-4">
+          <button onClick={() => handleQuickButton('today')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">
+            Today
+          </button>
+          <button onClick={() => handleQuickButton('last7')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">
+            Last 7 Days
+          </button>
+          <button onClick={() => handleQuickButton('thisMonth')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">
+            This Month
+          </button>
+        </div>
+
         <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 mb-6">
           <div className="flex flex-wrap items-end gap-4">
             <div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Brand / User</label>
               <select value={selectedBrand} onChange={(e) => setSelectedBrand(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-[#FF8C00] min-w-[200px]">
                 <option value="all">All Brands</option>
-                {brands.map((b) => (<option key={b.brandId} value={b.brandId}>{b.displayName || b.entityType || b.brandId}</option>))}
+                {brands.map((b) => (<option key={b.brandId} value={b.brandId}>{b.displayName || b.companyName || b.brandId}</option>))}
               </select>
             </div>
             {campaigns.length > 0 && (<div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Campaign</label>
@@ -175,7 +244,7 @@ export default function Dashboard() {
             </div>)}
             <div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Time Period</label>
               <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white focus:ring-2 focus:ring-[#FF8C00] min-w-[180px]">
-                <option value="nov2025">November 2025</option><option value="dec2025">December 2025</option><option value="jan2026">January 2026</option><option value="feb2026">February 2026</option><option value="mar2026">March 2026</option><option value="apr2026">April 2026</option><option value="may2026">May 2026</option><option value="jun2026">June 2026</option><option value="jul2026">July 2026</option><option value="aug2026">August 2026</option><option value="sep2026">September 2026</option><option value="oct2026">October 2026</option><option value="nov2026">November 2026</option><option value="dec2026">December 2026</option><option value="lastWeek">Last 7 Days</option><option value="lastMonth">Last 30 Days</option><option value="custom">Custom Range</option>
+                <option value="nov2025">November 2025</option><option value="dec2025">December 2025</option><option value="jan2026">January 2026</option><option value="feb2026">February 2026</option><option value="mar2026">March 2026</option><option value="apr2026">April 2026</option><option value="may2026">May 2026</option><option value="jun2026">June 2026</option><option value="jul2026">July 2026</option><option value="aug2026">August 2026</option><option value="sep2026">September 2026</option><option value="oct2026">October 2026</option><option value="nov2026">November 2026</option><option value="dec2026">December 2026</option><option value="custom">Custom Range</option>
               </select>
             </div>
             {dateRange === 'custom' && (<><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Start Date</label><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">End Date</label><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div></>)}
@@ -187,7 +256,7 @@ export default function Dashboard() {
         </div>
         {error && <div className="bg-red-900/50 border border-red-500 text-red-200 px-5 py-4 rounded-xl mb-6"><strong>Error:</strong> {error}</div>}
         {loading && <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF8C00]"></div></div>}
-        {initialLoad && !loading && <div className="text-center py-20"><svg className="mx-auto h-16 w-16 text-[#FF8C00]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><h3 className="mt-4 text-lg font-medium text-white">Ready to Load Analytics</h3><p className="mt-2 text-gray-400">Select your filters and click "Request Data" to view messaging metrics.</p></div>}
+        {initialLoad && !loading && <div className="text-center py-20"><svg className="mx-auto h-16 w-16 text-[#FF8C00]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><h3 className="mt-4 text-lg font-medium text-white">Ready to Load Analytics</h3><p className="mt-2 text-gray-400">Select your filters and click "Request Data" or use the quick buttons above.</p></div>}
         {data && !loading && (<>
           <div className="border-b border-[#FF8C00]/30 mb-6"><nav className="flex space-x-8">
             {['summary', 'daily', 'carriers', 'direction'].map((tab) => (<button key={tab} onClick={() => setActiveTab(tab)} className={`py-3 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-[#FF8C00] text-[#FF8C00]' : 'border-transparent text-gray-400 hover:text-white'}`}>{tab === 'direction' ? 'Inbound/Outbound' : tab}</button>))}
@@ -213,6 +282,50 @@ export default function Dashboard() {
                 <ResponsiveContainer width="100%" height={300}><PieChart><Pie data={data.carriers.slice(0, 8)} dataKey="cost" nameKey="carrier" cx="50%" cy="50%" outerRadius={100} label={({ carrier, percent }) => `${carrier.substring(0, 10)}${carrier.length > 10 ? '...' : ''} (${(percent * 100).toFixed(0)}%)`} labelLine={{ stroke: '#9CA3AF' }}>{data.carriers.slice(0, 8).map((e, i) => (<Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />))}</Pie><Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ backgroundColor: '#1E3A5F', border: '1px solid #FF8C00', borderRadius: '8px' }} /></PieChart></ResponsiveContainer>
               </div>
             </div>
+            
+            {/* Top Performers Section */}
+            {selectedBrand === 'all' && (
+              <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 overflow-hidden">
+                <div className="p-6 border-b border-[#2D4A6F]">
+                  <h3 className="text-lg font-semibold text-white">🏆 Top Performers by Messages Sent</h3>
+                  <p className="text-sm text-gray-400 mt-1">All brands ranked by outbound message volume</p>
+                </div>
+                {loadingPerformers ? (
+                  <div className="p-8 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF8C00] mx-auto"></div><p className="mt-2 text-gray-400">Loading top performers...</p></div>
+                ) : topPerformers.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-[#2D4A6F]">
+                      <thead className="bg-[#0F1A2E]">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-[#FF8C00] uppercase">Rank</th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-[#FF8C00] uppercase">Brand Name</th>
+                          <th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Messages Sent</th>
+                          <th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Total Cost</th>
+                          <th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Avg Cost/Msg</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#2D4A6F]">
+                        {topPerformers.map((performer, idx) => (
+                          <tr key={performer.brandId} className="hover:bg-[#2D4A6F]/50">
+                            <td className="px-6 py-4 text-sm text-white">
+                              {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`}
+                            </td>
+                            <td className="px-6 py-4 text-sm font-medium text-white">{performer.brandName}</td>
+                            <td className="px-6 py-4 text-sm text-gray-300 text-right">{formatNumber(performer.outbound)}</td>
+                            <td className="px-6 py-4 text-sm text-gray-300 text-right">{formatCurrency(performer.cost)}</td>
+                            <td className="px-6 py-4 text-sm text-gray-300 text-right">
+                              ${performer.outbound > 0 ? (performer.cost / performer.outbound).toFixed(4) : '0.0000'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-400">No performer data available. Try selecting "All Brands" and requesting data.</div>
+                )}
+              </div>
+            )}
           </div>)}
           {activeTab === 'daily' && (<div className="space-y-6">
             <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-6"><h3 className="text-lg font-semibold text-white mb-4">Daily Messages & Cost</h3>
