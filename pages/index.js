@@ -17,8 +17,6 @@ export default function Dashboard() {
   const [selectedBrand, setSelectedBrand] = useState('all');
   const [campaigns, setCampaigns] = useState([]);
   const [selectedCampaign, setSelectedCampaign] = useState('all');
-  const [topPerformers, setTopPerformers] = useState([]);
-  const [loadingPerformers, setLoadingPerformers] = useState(false);
 
   const dateRanges = {
     nov2025: { start: '2025-11-01T00:00:00-05:00', end: '2025-12-01T00:00:00-05:00' },
@@ -80,11 +78,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleQuickButton = async (type) => {
-    const dates = getQuickDates(type);
-    await fetchDataWithDates(dates.start, dates.end);
-  };
-
   const fetchDataWithDates = async (startDate, endDate) => {
     setLoading(true); setError(null); setInitialLoad(false);
     try {
@@ -93,26 +86,29 @@ export default function Dashboard() {
       if (!res.ok) throw new Error(result.error || 'API Error: ' + res.status);
       if (!result.data || !result.data.length) { setData(null); setError('No data found for the selected period.'); }
       else setData(processData(result.data));
-      if (selectedBrand === 'all') fetchTopPerformers(startDate, endDate);
-      else setTopPerformers([]);
     } catch (err) { setError(err.message); setData(null); }
     finally { setLoading(false); }
+  };
+
+  const handleToday = () => {
+    const dates = getQuickDates('today');
+    fetchDataWithDates(dates.start, dates.end);
+  };
+
+  const handleLast7Days = () => {
+    const dates = getQuickDates('last7');
+    fetchDataWithDates(dates.start, dates.end);
+  };
+
+  const handleThisMonth = () => {
+    const dates = getQuickDates('thisMonth');
+    fetchDataWithDates(dates.start, dates.end);
   };
 
   const fetchData = async () => {
     const startDate = dateRange === 'custom' ? customStart + 'T00:00:00-05:00' : dateRanges[dateRange].start;
     const endDate = dateRange === 'custom' ? customEnd + 'T00:00:00-05:00' : dateRanges[dateRange].end;
     await fetchDataWithDates(startDate, endDate);
-  };
-
-  const fetchTopPerformers = async (startDate, endDate) => {
-    setLoadingPerformers(true);
-    try {
-      const res = await fetch('/api/top-performers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate }) });
-      const result = await res.json();
-      if (result.data) setTopPerformers(result.data);
-    } catch (err) { console.error('Error fetching top performers:', err); }
-    finally { setLoadingPerformers(false); }
   };
 
   const formatDateDisplay = (dateStr) => {
@@ -171,13 +167,7 @@ export default function Dashboard() {
   
   const MetricCard = ({ title, value, subtitle, color = "blue" }) => {
     const colors = { blue: 'text-blue-400', green: 'text-green-400', orange: 'text-orange-400', indigo: 'text-indigo-400', purple: 'text-purple-400', cyan: 'text-cyan-400' };
-    return (<div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 hover:border-[#FF8C00]/50 transition-all"><h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{title}</h3><p className={`mt-2 text-2xl font-bold ${colors[color] || 'text-white'}`}>{value}</p>{subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}</div>);
-  };
-
-  const getSelectedBrandName = () => {
-    if (selectedBrand === 'all') return 'All Brands';
-    const brand = brands.find(b => b.brandId === selectedBrand);
-    return brand?.displayName || brand?.companyName || selectedBrand;
+    return (<div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 hover:border-[#FF8C00]/50 transition-all"><h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{title}</h3><p className={'mt-2 text-2xl font-bold ' + (colors[color] || 'text-white')}>{value}</p>{subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}</div>);
   };
 
   return (
@@ -191,13 +181,6 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className="text-sm text-gray-400">Quick:</span>
-            <button onClick={() => handleQuickButton('today')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">Today</button>
-            <button onClick={() => handleQuickButton('last7')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">Last 7 Days</button>
-            <button onClick={() => handleQuickButton('thisMonth')} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow">This Month</button>
-            {selectedBrand !== 'all' && <span className="text-sm text-[#FF8C00] ml-2">→ for {getSelectedBrandName()}</span>}
-          </div>
           <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-5 mb-6">
             <div className="flex flex-wrap items-end gap-4">
               <div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Brand / User</label>
@@ -218,6 +201,20 @@ export default function Dashboard() {
                 </select>
               </div>
               {dateRange === 'custom' && (<React.Fragment><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">Start Date</label><input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div><div><label className="block text-xs font-semibold text-gray-300 mb-2 uppercase">End Date</label><input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} className="bg-[#0F1A2E] border border-[#FF8C00]/30 rounded-lg px-4 py-2.5 text-white" /></div></React.Fragment>)}
+            </div>
+            <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-[#2D4A6F]">
+              <button onClick={handleToday} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
+                {loading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                Today
+              </button>
+              <button onClick={handleLast7Days} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
+                {loading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                Last 7 Days
+              </button>
+              <button onClick={handleThisMonth} disabled={loading} className="bg-[#4A90D9] text-white px-5 py-2.5 rounded-lg hover:bg-[#3A7BC8] disabled:bg-gray-600 font-semibold transition-colors shadow flex items-center gap-2">
+                {loading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
+                This Month
+              </button>
               <button onClick={fetchData} disabled={loading} className="bg-[#FF8C00] text-white px-6 py-2.5 rounded-lg hover:bg-[#E67E00] disabled:bg-gray-600 font-semibold flex items-center gap-2 shadow-lg">
                 {loading && <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" /></svg>}
                 {loading ? 'Loading...' : 'Request Data'}
@@ -226,11 +223,11 @@ export default function Dashboard() {
           </div>
           {error && <div className="bg-red-900/50 border border-red-500 text-red-200 px-5 py-4 rounded-xl mb-6"><strong>Error:</strong> {error}</div>}
           {loading && <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#FF8C00]"></div></div>}
-          {initialLoad && !loading && <div className="text-center py-20"><svg className="mx-auto h-16 w-16 text-[#FF8C00]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><h3 className="mt-4 text-lg font-medium text-white">Ready to Load Analytics</h3><p className="mt-2 text-gray-400">Select your filters and click Request Data or use the quick buttons above.</p></div>}
+          {initialLoad && !loading && <div className="text-center py-20"><svg className="mx-auto h-16 w-16 text-[#FF8C00]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg><h3 className="mt-4 text-lg font-medium text-white">Ready to Load Analytics</h3><p className="mt-2 text-gray-400">Select your filters and click a button to view messaging metrics.</p></div>}
           {data && !loading && (
             <React.Fragment>
               <div className="border-b border-[#FF8C00]/30 mb-6"><nav className="flex space-x-8">
-                {['summary', 'daily', 'carriers', 'direction'].map((tab) => (<button key={tab} onClick={() => setActiveTab(tab)} className={`py-3 px-1 border-b-2 font-medium text-sm capitalize ${activeTab === tab ? 'border-[#FF8C00] text-[#FF8C00]' : 'border-transparent text-gray-400 hover:text-white'}`}>{tab === 'direction' ? 'Inbound/Outbound' : tab}</button>))}
+                {['summary', 'daily', 'carriers', 'direction'].map((tab) => (<button key={tab} onClick={() => setActiveTab(tab)} className={'py-3 px-1 border-b-2 font-medium text-sm capitalize ' + (activeTab === tab ? 'border-[#FF8C00] text-[#FF8C00]' : 'border-transparent text-gray-400 hover:text-white')}>{tab === 'direction' ? 'Inbound/Outbound' : tab}</button>))}
               </nav></div>
               {activeTab === 'summary' && (<div className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -253,15 +250,6 @@ export default function Dashboard() {
                     <ResponsiveContainer width="100%" height={300}><PieChart><Pie data={data.carriers.slice(0, 8)} dataKey="cost" nameKey="carrier" cx="50%" cy="50%" outerRadius={100} label={({ carrier, percent }) => (carrier.substring(0, 10) + (carrier.length > 10 ? '...' : '') + ' (' + (percent * 100).toFixed(0) + '%)')} labelLine={{ stroke: '#9CA3AF' }}>{data.carriers.slice(0, 8).map((e, i) => (<Cell key={'cell-' + i} fill={COLORS[i % COLORS.length]} />))}</Pie><Tooltip formatter={(v) => formatCurrency(v)} contentStyle={{ backgroundColor: '#1E3A5F', border: '1px solid #FF8C00', borderRadius: '8px' }} /></PieChart></ResponsiveContainer>
                   </div>
                 </div>
-                {selectedBrand === 'all' && (
-                  <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 overflow-hidden">
-                    <div className="p-6 border-b border-[#2D4A6F]"><h3 className="text-lg font-semibold text-white">🏆 Top Performers by Messages Sent</h3><p className="text-sm text-gray-400 mt-1">All brands ranked by outbound message volume</p></div>
-                    {loadingPerformers ? (<div className="p-8 text-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#FF8C00] mx-auto"></div><p className="mt-2 text-gray-400">Loading top performers...</p></div>
-                    ) : topPerformers.length > 0 ? (
-                      <div className="overflow-x-auto"><table className="min-w-full divide-y divide-[#2D4A6F]"><thead className="bg-[#0F1A2E]"><tr><th className="px-6 py-4 text-left text-xs font-semibold text-[#FF8C00] uppercase">Rank</th><th className="px-6 py-4 text-left text-xs font-semibold text-[#FF8C00] uppercase">Brand Name</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Messages Sent</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Total Cost</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Avg Cost/Msg</th></tr></thead><tbody className="divide-y divide-[#2D4A6F]">{topPerformers.map((performer, idx) => (<tr key={performer.brandId} className="hover:bg-[#2D4A6F]/50"><td className="px-6 py-4 text-sm text-white">{idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '#' + (idx + 1)}</td><td className="px-6 py-4 text-sm font-medium text-white">{performer.brandName}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatNumber(performer.outbound)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatCurrency(performer.cost)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{'$' + (performer.outbound > 0 ? (performer.cost / performer.outbound).toFixed(4) : '0.0000')}</td></tr>))}</tbody></table></div>
-                    ) : (<div className="p-8 text-center text-gray-400">No performer data available for this period.</div>)}
-                  </div>
-                )}
               </div>)}
               {activeTab === 'daily' && (<div className="space-y-6">
                 <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-6"><h3 className="text-lg font-semibold text-white mb-4">Daily Messages and Cost</h3>
@@ -276,7 +264,7 @@ export default function Dashboard() {
                 <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 overflow-hidden"><div className="overflow-x-auto"><table className="min-w-full divide-y divide-[#2D4A6F]"><thead className="bg-[#0F1A2E]"><tr><th className="px-6 py-4 text-left text-xs font-semibold text-[#FF8C00] uppercase">Carrier</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Outbound</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Inbound</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Segments</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Cost</th><th className="px-6 py-4 text-right text-xs font-semibold text-[#FF8C00] uppercase">Avg/Msg</th></tr></thead><tbody className="divide-y divide-[#2D4A6F]">{data.carriers.map((r, i) => (<tr key={i} className="hover:bg-[#2D4A6F]/50"><td className="px-6 py-4 text-sm font-medium text-white">{r.carrier}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatNumber(r.outbound)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatNumber(r.inbound)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatNumber(r.parts)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{formatCurrency(r.cost)}</td><td className="px-6 py-4 text-sm text-gray-300 text-right">{'$' + (r.messages > 0 ? (r.cost / r.messages).toFixed(4) : '0.0000')}</td></tr>))}</tbody></table></div></div>
               </div>)}
               {activeTab === 'direction' && (<div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{data.directions.map((d, i) => (<div key={i} className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-6"><div className="flex items-center gap-3 mb-4"><div className={`w-4 h-4 rounded-full ${d.direction === 'outbound' ? 'bg-[#FF8C00]' : 'bg-[#4A90D9]'}`}></div><h3 className="text-lg font-semibold text-white capitalize">{d.direction} Messages</h3></div><div className="space-y-3"><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Messages:</span><span className="font-semibold text-white">{formatNumber(d.messages)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Segments:</span><span className="font-semibold text-white">{formatNumber(d.parts)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Total Cost:</span><span className="font-semibold text-white">{formatCurrency(d.cost)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Avg Cost/Message:</span><span className="font-semibold text-white">{'$' + (d.messages > 0 ? (d.cost / d.messages).toFixed(4) : '0.0000')}</span></div><div className="flex justify-between py-2"><span className="text-gray-400">Avg Cost/Segment:</span><span className="font-semibold text-white">{'$' + (d.parts > 0 ? (d.cost / d.parts).toFixed(4) : '0.0000')}</span></div></div></div>))}</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{data.directions.map((d, i) => (<div key={i} className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-6"><div className="flex items-center gap-3 mb-4"><div className={'w-4 h-4 rounded-full ' + (d.direction === 'outbound' ? 'bg-[#FF8C00]' : 'bg-[#4A90D9]')}></div><h3 className="text-lg font-semibold text-white capitalize">{d.direction} Messages</h3></div><div className="space-y-3"><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Messages:</span><span className="font-semibold text-white">{formatNumber(d.messages)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Segments:</span><span className="font-semibold text-white">{formatNumber(d.parts)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Total Cost:</span><span className="font-semibold text-white">{formatCurrency(d.cost)}</span></div><div className="flex justify-between py-2 border-b border-[#2D4A6F]"><span className="text-gray-400">Avg Cost/Message:</span><span className="font-semibold text-white">{'$' + (d.messages > 0 ? (d.cost / d.messages).toFixed(4) : '0.0000')}</span></div><div className="flex justify-between py-2"><span className="text-gray-400">Avg Cost/Segment:</span><span className="font-semibold text-white">{'$' + (d.parts > 0 ? (d.cost / d.parts).toFixed(4) : '0.0000')}</span></div></div></div>))}</div>
                 <div className="bg-[#1E3A5F] rounded-xl shadow-lg border border-[#FF8C00]/20 p-6"><h3 className="text-lg font-semibold text-white mb-4">Direction Comparison</h3><ResponsiveContainer width="100%" height={300}><BarChart data={data.directions}><CartesianGrid strokeDasharray="3 3" stroke="#2D4A6F" /><XAxis dataKey="direction" tick={{ fill: '#9CA3AF' }} /><YAxis yAxisId="left" tick={{ fill: '#9CA3AF' }} /><YAxis yAxisId="right" orientation="right" tick={{ fill: '#9CA3AF' }} /><Tooltip formatter={(v, n) => n === 'Cost ($)' ? formatCurrency(v) : formatNumber(v)} contentStyle={{ backgroundColor: '#1E3A5F', border: '1px solid #FF8C00', borderRadius: '8px' }} /><Legend /><Bar yAxisId="left" dataKey="messages" fill="#FF8C00" name="Messages" radius={[4, 4, 0, 0]} /><Bar yAxisId="right" dataKey="cost" fill="#00C49F" name="Cost ($)" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
               </div>)}
             </React.Fragment>
